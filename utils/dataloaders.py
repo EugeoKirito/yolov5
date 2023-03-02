@@ -287,6 +287,8 @@ class LoadImages:
             for _ in range(self.vid_stride):
                 self.cap.grab()
             ret_val, im0 = self.cap.retrieve()
+
+
             while not ret_val:
                 self.count += 1
                 self.cap.release()
@@ -295,6 +297,7 @@ class LoadImages:
                 path = self.files[self.count]
                 self._new_video(path)
                 ret_val, im0 = self.cap.read()
+
 
             self.frame += 1
             # im0 = self._cv2_rotate(im0)  # for use if cv2 autorotation is False
@@ -349,7 +352,10 @@ class LoadStreams:
         sources = Path(sources).read_text().rsplit() if os.path.isfile(sources) else [sources]
         n = len(sources)
         self.sources = [clean_str(x) for x in sources]  # clean source names for later
+
+        #帧修改
         self.imgs, self.fps, self.frames, self.threads = [None] * n, [0] * n, [0] * n, [None] * n
+
         for i, s in enumerate(sources):  # index, source
             # Start thread to read frames from video stream
             st = f'{i + 1}/{n}: {s}... '
@@ -368,6 +374,8 @@ class LoadStreams:
             h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
             fps = cap.get(cv2.CAP_PROP_FPS)  # warning: may return 0 or nan
             self.frames[i] = max(int(cap.get(cv2.CAP_PROP_FRAME_COUNT)), 0) or float('inf')  # infinite stream fallback
+
+            #
             self.fps[i] = max((fps if math.isfinite(fps) else 0) % 100, 0) or 30  # 30 FPS fallback
 
             _, self.imgs[i] = cap.read()  # guarantee first frame

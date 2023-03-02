@@ -28,9 +28,6 @@ Usage - formats:
                                  yolov5s_paddle_model       # PaddlePaddle
 """
 
-
-
-
 import argparse
 import os
 import platform
@@ -38,33 +35,27 @@ import sys
 from pathlib import Path
 import time
 import torch
+
 try:
     import sys
+
     sys.path.append('/opt/nvidia/jetson-gpio/lib/python/')
     sys.path.append('/opt/nvidia/jetson-gpio/lib/python/Jetson/GPIO')
     import Jetson.GPIO as GPIO
 except Exception as e:
     print(e)
-from  multiprocessing import Process
-
-
-
+from multiprocessing import Process
 
 led1 = 15
 led2 = 16
 led3 = 18
 
 
-#设置GPIO初始口
+# 设置GPIO初始口
 # GPIO.setmode(GPIO.BOARD)
 # GPIO.setup(led1, GPIO.OUT)
 # GPIO.setup(led2, GPIO.OUT)
 # GPIO.setup(led3, GPIO.OUT)
-
-
-
-
-
 
 
 def mask():
@@ -97,9 +88,6 @@ def safe_glasses():
     # time.sleep(1)
 
 
-
-
-
 FILE = Path(__file__).resolve()
 ROOT = FILE.parents[0]  # YOLOv5 root directory
 if str(ROOT) not in sys.path:
@@ -113,15 +101,16 @@ from utils.general import (LOGGER, Profile, check_file, check_img_size, check_im
 from utils.plots import Annotator, colors, save_one_box
 from utils.torch_utils import select_device, smart_inference_mode
 
+count = 0  # 统计违规帧数
+open_the_door_count = 0  # 统计门开的次数
+Judgment_Continue_Mask = []  # 10帧判断
+Judgment_Continue_Safe_Glasses = []  # 10帧判断
+Judgment_Continue_Gloves = []  # 10帧判断
+open_door_flag = None  # 门打卡的 flag
+count = 0  # 用来计数10帧
+save_count = 0  # 保存图片的计数器
 
-count = 0 #统计违规帧数
-open_the_door_count = 0 #统计门开的次数
-Judgment_Continue_Mask = [] #10帧判断
-Judgment_Continue_Safe_Glasses = [] #10帧判断
-Judgment_Continue_Gloves = [] #10帧判断
-open_door_flag = None  #门打卡的 flag
-count = 0  #用来计数10帧
-save_count = 0 #保存图片的计数器
+
 @smart_inference_mode()
 def run(
         weights=ROOT / 'yolov5x.pt',  # model path or triton URL
@@ -241,15 +230,12 @@ def run(
                     vidcut_path = vidcut_dir + '\\' + str(p.stem) + (
                         '' if dataset.mode == 'image' else f'_{frame}')
                 try:
-                    #把label列表 送入note_save 中
+                    # 把label列表 送入note_save 中
                     def test_for_process(t):
                         while True:
                             print(t)
 
-
-
-
-                    def note_and_save(label_li): #已实现
+                    def note_and_save(label_li):  # 已实现
                         global count
                         global save_count
                         global Judgment_Continue_Gloves
@@ -258,7 +244,7 @@ def run(
                         global open_door_flag
 
                         count += 1
-
+                        # 各个状态对应的标签 0: s，1: m  ，2: c ，3: g ，4: ug ，5: us ，6: um ，7: o
                         # 判断开门状态  2 &&  7
 
                         # 连续10帧判断  把10帧连续结果 append到对应列表
@@ -286,9 +272,9 @@ def run(
                         if 7 in label_li:  # 门开了  检测与报警 8~10帧数 报警一次
                             # 手套没带 10帧里面有8帧
                             print("门开了")
-                            print('眼镜',Judgment_Continue_Safe_Glasses)
-                            print('手套',Judgment_Continue_Gloves)
-                            print('口罩',Judgment_Continue_Mask)
+                            print('眼镜', Judgment_Continue_Safe_Glasses)
+                            print('手套', Judgment_Continue_Gloves)
+                            print('口罩', Judgment_Continue_Mask)
                             save_count += 1
                             if sum(Judgment_Continue_Gloves) >= 5:
                                 print('Judgment_Continue_Gloves')
@@ -343,32 +329,26 @@ def run(
                             save_count = 0
                         return "Note and Save  Success!"
 
-
-
                     label_list = []
-                    #可能性太低的标签 也不要 ----> 评估<0.5的都是无效标签(也有可能是有效标签)
-                    #ug 误判问题！   ug在某个特定帧数   误判为   0.8以上
-                    #如何修正？  ug问题  其实也不用修 因为太短了 count加一或者加二无影响
+                    # 可能性太低的标签 也不要 ----> 评估<0.5的都是无效标签(也有可能是有效标签)
+                    # ug 误判问题！   ug在某个特定帧数   误判为   0.8以上
+                    # 如何修正？  ug问题  其实也不用修 因为太短了 count加一或者加二无影响
 
                     try:
                         print(det)
-                        for info_single_li  in reversed(det):
+                        for info_single_li in reversed(det):
                             label_list.append(info_single_li[-1])
                     except Exception as e:
                         label_list = []
-                    print(label_list)  #[tensor(3.), tensor(0.), tensor(3.)]  这张图片 检测出来 3 0 3 手套 护目镜 手套
-                    resolove_info = note_and_save(label_list) #把每一张/每一帧 pic 检测的结果 丢进函数中
+                    print(label_list)  # [tensor(3.), tensor(0.), tensor(3.)]  这张图片 检测出来 3 0 3 手套 护目镜 手套
+                    resolove_info = note_and_save(label_list)  # 把每一张/每一帧 pic 检测的结果 丢进函数中
 
 
 
 
                 except Exception as e:
-                    #如果那一帧没有检测到 label 就打印None
-                    print("报错: ",e)
-
-
-
-
+                    # 如果那一帧没有检测到 label 就打印None
+                    print("报错: ", e)
 
                 # Write results
                 for *xyxy, conf, cls in reversed(det):
@@ -381,9 +361,7 @@ def run(
                     kuan = int(xyxy[3].item()) - int(xyxy[1].item())
                     label = int(cls)  # 对应每个物体的标签对应的数字label，如person:0
                     # print(label) #
-                    #返回处理结果 进行下一步是否要通报龙卷风
-
-
+                    # 返回处理结果 进行下一步是否要通报龙卷风
 
                     if save_txt:  # Write to file
                         xywh = (xyxy2xywh(torch.tensor(xyxy).view(1, 4)) / gn).view(-1).tolist()  # normalized xywh
@@ -409,8 +387,7 @@ def run(
                 cv2.waitKey(1)  # 1 millisecond
 
             # Save results (image with detections)
-            #开门不带防护用具 保存视频，然后再把视频转化成部分帧
-
+            # 开门不带防护用具 保存视频，然后再把视频转化成部分帧
 
             if save_img:
                 if dataset.mode == 'image':
@@ -426,7 +403,7 @@ def run(
                             h = int(vid_cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
                         else:  # stream
                             fps, w, h = 30, im0.shape[1], im0.shape[0]
-                        
+
                         save_path = str(Path(save_path).with_suffix('.mp4'))  # force *.mp4 suffix on results videos
                         vid_writer[i] = cv2.VideoWriter(save_path, cv2.VideoWriter_fourcc(*'mp4v'), fps, (w, h))
                     vid_writer[i].write(im0)
@@ -437,7 +414,8 @@ def run(
     # Print results
     t = tuple(x.t / seen * 1E3 for x in dt)  # speeds per image
     LOGGER.info(f'Speed: %.1fms pre-process, %.1fms inference, %.1fms NMS per image at shape {(1, 3, *imgsz)}' % t)
-    if save_txt   labels saved to {save_dir / 'labels'}" if save_txt else ''
+    if save_txt or save_img:
+        s = f"\n{len(list(save_dir.glob('labels/*.txt')))} labels saved to {save_dir / 'labels'}" if save_txt else ''
         LOGGER.info(f"Results saved to {colorstr('bold', save_dir)}{s}")
     if update:
         strip_optimizer(weights[0])  # update model (to fix SourceChangeWarning)
@@ -445,10 +423,11 @@ def run(
 
 def parse_opt():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--weights', nargs='+', type=str, default=ROOT / 'runs/train/exp10/weights/best.pt', help='model path or triton URL')
-    #pic
-    #parser.add_argument('--source', type=str, default=ROOT / 'data/images', help='file/dir/URL/glob/screen/0(webcam)')
-    #cam
+    parser.add_argument('--weights', nargs='+', type=str, default=ROOT / 'runs/train/exp10/weights/best.pt',
+                        help='model path or triton URL')
+    # pic
+    # parser.add_argument('--source', type=str, default=ROOT / 'data/images', help='file/dir/URL/glob/screen/0(webcam)')
+    # cam
     parser.add_argument('--source', type=str, default='0', help='file/dir/URL/glob/screen/0(webcam)')
 
     parser.add_argument('--data', type=str, default=ROOT / 'data/coco128.yaml', help='(optional) dataset.yaml path')
@@ -457,11 +436,11 @@ def parse_opt():
     parser.add_argument('--iou-thres', type=float, default=0.45, help='NMS IoU threshold')
     parser.add_argument('--max-det', type=int, default=1000, help='maximum detections per image')
     parser.add_argument('--device', default='', help='cuda device, i.e. 0 or 0,1,2,3 or cpu')
-    parser.add_argument('--view-img', action='store_true', help='show results',default=True)
+    parser.add_argument('--view-img', action='store_true', help='show results', default=True)
     parser.add_argument('--save-txt', action='store_true', help='save results to *.txt')
     parser.add_argument('--save-conf', action='store_true', help='save confidences in --save-txt labels')
     parser.add_argument('--save-crop', action='store_true', help='save cropped prediction boxes')
-    parser.add_argument('--nosave', action='store_true', help='do not save images/videos',default=True)
+    parser.add_argument('--nosave', action='store_true', help='do not save images/videos', default=True)
     parser.add_argument('--classes', nargs='+', type=int, help='filter by class: --classes 0, or --classes 0 2 3')
     parser.add_argument('--agnostic-nms', action='store_true', help='class-agnostic NMS')
     parser.add_argument('--augment', action='store_true', help='augmented inference')
